@@ -4,11 +4,7 @@ import six.moves.cPickle as pickle
 import theano
 import theano.tensor as T
 from optimize import rmsprop
-
-def tmax(input,bar):
-    return T.switch(input>bar,input,bar)
-def tmin(input,bar):
-    return T.switch(input<bar,input,bar)
+from ops import tmax,tmin
 
 class Lipshitz_Layer(object):
     def __init__(self, rng, input, n_max, n_in,n_out, W=None, b=None):
