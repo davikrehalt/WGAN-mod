@@ -43,7 +43,6 @@ def example_train(n_epochs=100, batch_size=20,gradient_reg=1.0):
     import timeit
     print_initial_parameters    = False
     print_initial_gradient_cost = True 
-    print_initial_gradient_norm = False
     print_initial_gradient_norms = False
     plot_time=10
     
@@ -67,7 +66,7 @@ def example_train(n_epochs=100, batch_size=20,gradient_reg=1.0):
         #info_layers=[(5,1,20),(5,20,20),(5,20,20),(5,20,1)]
         info_layers=[(5,1,20),(1,20,1)]
     )
-    cost = -network.mean_difference+gradient_reg*network.gradient_cost
+    cost = -network.mean_difference+gradient_reg/(1.0-network.gradient_cost)
 
     if print_initial_parameters:
         print('printing initial parameters')
@@ -81,12 +80,6 @@ def example_train(n_epochs=100, batch_size=20,gradient_reg=1.0):
         }
     )
 
-    get_gradient_norm = theano.function(
-        inputs=[],
-        outputs=[layer.gradient_norm for layer in network.layers],
-        givens={
-        }
-    )
     get_gradient_norms = theano.function(
         inputs=[],
         outputs=[layer.gradient_norms for layer in network.layers],
@@ -102,10 +95,6 @@ def example_train(n_epochs=100, batch_size=20,gradient_reg=1.0):
 
     if print_initial_gradient_cost:
         print('initial gradient cost: %f '% get_gradient_cost())
-    if print_initial_gradient_norm:
-        print('printing gradient norm')
-        for matrix in get_gradient_norm():
-            print(matrix)
     if print_initial_gradient_norms:
         print('printing gradient norms')
         for matrix in get_gradient_norms():
