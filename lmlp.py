@@ -9,7 +9,7 @@ class Lipshitz_Layer(object):
     def __init__(self, rng, input, n_max, n_in,n_out, W=None, b=None):
         self.input = input
         if W is None:
-            max_value=np.sqrt(3 / n_out)
+            max_value= 1.0 / n_in
             W_values = np.asarray(
                 rng.uniform(
                     low=-max_value,
@@ -33,34 +33,52 @@ class Lipshitz_Layer(object):
 
         self.W = W
         self.b = b
+        self.params=[self.W,self.b]
         self.output = (T.dot(input, self.W) + self.b).max(axis=1)
-        gradient_norms=abs(self.W).sum(axis=1)
-        self.gradient_norm=(T.switch(gradient_norms>1,gradient_norms-1,0.0))
+        self.gradient_norms=abs(self.W).sum(axis=1)
+        self.gradient_norm=(T.switch(self.gradient_norms>1,self.gradient_norms-1,0.0))
         self.gradient_cost=(self.gradient_norm).sum()
-        self.max_gradient=T.max(gradient_norms)
+        self.max_gradient=T.max(self.gradient_norms)
 
 class LMLP(object):
-    def __init__(self, rng, input, info_layers):
+    def __init__(self, rng, input, info_layers,params=None):
         self.input = input
         current_input=input
         self.layers=[]
         self.gradient_cost=1.0
         self.max_gradient=1.0
-        for info in info_layers:
-            self.layers.append(Lipshitz_Layer(
-                rng=rng,
-                input=current_input,
-                n_max=info[0],
-                n_in=info[1],
-                n_out=info[2]
-            ))
-            current_input=self.layers[-1].output
-            self.gradient_cost*=(self.layers[-1].gradient_cost+1)
-            self.max_gradient*=self.layers[-1].max_gradient
+        if params is None:
+            for info in info_layers:
+                self.layers.append(Lipshitz_Layer(
+                    rng=rng,
+                    input=current_input,
+                    n_max=info[0],
+                    n_in=info[1],
+                    n_out=info[2]
+                ))
+                current_input=self.layers[-1].output
+                self.gradient_cost*=(self.layers[-1].gradient_cost+1)
+                self.max_gradient*=self.layers[-1].max_gradient
+        else:
+            index = 0
+            for info in info_layers:
+                self.layers.append(Lipshitz_Layer(
+                    rng=rng,
+                    input=current_input,
+                    n_max=info[0],
+                    n_in=info[1],
+                    n_out=info[2],
+                    W=params[index],
+                    b=params[index+1]
+                ))
+                index+=2
+                current_input=self.layers[-1].output
+                self.gradient_cost*=(self.layers[-1].gradient_cost+1)
+                self.max_gradient*=self.layers[-1].max_gradient
+                
+        self.gradient_cost=1.0/(2.0-self.gradient_cost)
         self.output=self.layers[-1].output
-        self.params_W = [layer.W for layer in self.layers]
-        self.params_b = [layer.b for layer in self.layers]
-        self.params = self.params_W + self.params_b
+        self.params = [param for layer in self.layers for param in layer.params]
     def mse(self,y):
         return T.mean((self.output - y) ** 2)
 
@@ -84,13 +102,14 @@ def load_data_test(data_num):
     rval = [(valid_set_x, valid_set_y), (train_set_x, train_set_y)]
     return rval
 
-def example_train(learning_rate=0.01, n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
+def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
     print_initial_parameters = False
     print_middle_parameters = False
     print_end_parameters = False
     print_initial_gradient = False 
     print_validation_gradient_norms = False
-    plot_time=1000
+    plot_time=100
+
     import timeit
     datasets = load_data_test(data_num)
 
@@ -103,11 +122,9 @@ def example_train(learning_rate=0.01, n_epochs=1000, batch_size=20,gradient_reg=
 
     print('... building the model')
 
-    # allocate symbolic variables for the data
-    index = T.lscalar()  # index to a [mini]batch
-    x = T.matrix('x')  # the data is presented as rasterized images
-    y = T.matrix('y')  # the labels are presented as 1D vector of
-                        # [int] labels
+    index = T.lscalar() 
+    x = T.matrix('x') 
+    y = T.matrix('y')  
 
     rng = np.random.RandomState(1000)
 
@@ -245,5 +262,5 @@ def example_predict(length,data_num):
     plt.show()
 
 if __name__ == '__main__':
-    example_train(data_num=0)
+    example_train(data_num=1)
     example_predict(1000,0)
