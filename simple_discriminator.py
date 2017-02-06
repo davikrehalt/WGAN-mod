@@ -9,17 +9,17 @@ from lmlp import LMLP
 class Simple_Discriminator(object):
     def __init__(self,rng,input_fake,input_real,info_layers):
         self.input=input_fake
-        self.input_r=input_fake
-        self.network1=LMLP(rng,input_fake,info_layers)
+        self.input_r=input_real
+        self.network1=LMLP(rng,self.input,info_layers)
         self.layers=self.network1.layers
         self.params=self.network1.params
         self.output=self.network1.output
         self.gradient_cost=self.network1.gradient_cost
         self.max_gradient=self.network1.max_gradient
-        self.network2=LMLP(rng,input_real,
+        self.network2=LMLP(rng,self.input_r,
                            info_layers,params=self.params)
         self.output_r=self.network2.output
-        self.mean_difference=(abs(self.output_r-self.output)).mean()
+        self.mean_difference=(self.output-self.output_r).mean()
 
 def generate_data(length,data_num):
     if data_num == 0:
@@ -42,7 +42,7 @@ def generate_data(length,data_num):
 def example_train(n_epochs=100, batch_size=20,gradient_reg=1.0):
     import timeit
     print_initial_parameters    = False
-    print_initial_gradient_cost = True 
+    print_initial_gradient_cost = False
     print_initial_gradient_norms = False
     plot_time=10
     
@@ -107,7 +107,6 @@ def example_train(n_epochs=100, batch_size=20,gradient_reg=1.0):
             x_real: real_x_valid[index * batch_size:(index + 1) * batch_size]
         }
     )
-    num_params = len(network.params)
     updates=rmsprop(cost,network.params)
     train_model = theano.function(
         inputs=[index],

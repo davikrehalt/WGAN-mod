@@ -7,13 +7,18 @@ from optimize import rmsprop
 from ops import tmax,tmin
 
 class Lipshitz_Layer(object):
-    def __init__(self, rng, input, n_max, n_in,n_out, W=None, b=None):
+    def __init__(self, rng, input, n_max, n_in,n_out, W=None, b=None,init=0):
         self.input = input
         if W is None:
-            max_value= 1.0 / n_in
+            if init == 0:
+                min_value = -1.0 / n_in
+                max_value = 1.0 / n_in
+            elif init == 1:
+                min_value = -sqrt(3.0/n_in)
+                max_value = sqrt(3.0/n_in)
             W_values = np.asarray(
                 rng.uniform(
-                    low=-max_value,
+                    low=min_value,
                     high=max_value,
                     size=(n_max, n_in, n_out)
                 ),
@@ -24,8 +29,8 @@ class Lipshitz_Layer(object):
         if b is None:
             b_values = np.asarray(
                 rng.uniform(
-                    low=-0.1,
-                    high=0.1,
+                    low=-0.5,
+                    high=0.5,
                     size=(n_max,n_out)
                 ),
                 dtype=theano.config.floatX
@@ -35,22 +40,18 @@ class Lipshitz_Layer(object):
         self.W = W
         self.b = b
         self.params=[self.W,self.b]
-        self.output = (T.dot(input, self.W) + self.b).max(axis=1)
+        self.output = (T.dot(self.input, self.W) + self.b).max(axis=1)
         self.gradient_norms=abs(self.W).sum(axis=1)
         self.gradient_cost=T.sum(tmax(self.gradient_norms-1.0,0.0))
-        self.gradient_cost_inv=T.sum(tmax(1.0-self.gradient_norms,0.0))
         self.max_gradient=T.max(self.gradient_norms)
-        self.min_gradient=T.min(self.gradient_norms)
 
 class LMLP(object):
-    def __init__(self, rng, input, info_layers,params=None):
+    def __init__(self, rng, input, info_layers,params=None,init=0):
         self.input = input
         current_input=input
         self.layers=[]
         self.gradient_cost=0.0
-        self.gradient_cost_inv=0.0
         self.max_gradient=1.0
-        self.min_gradient=1.0
         if params is None:
             for info in info_layers:
                 self.layers.append(Lipshitz_Layer(
@@ -58,13 +59,12 @@ class LMLP(object):
                     input=current_input,
                     n_max=info[0],
                     n_in=info[1],
-                    n_out=info[2]
+                    n_out=info[2],
+                    init=init
                 ))
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
-                self.min_gradient*=self.layers[-1].min_gradient
                 self.gradient_cost+=self.layers[-1].gradient_cost
-                self.gradient_cost_inv+=self.layers[-1].gradient_cost_inv
         else:
             index = 0
             for info in info_layers:
@@ -80,9 +80,7 @@ class LMLP(object):
                 index+=2
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
-                self.min_gradient*=self.layers[-1].min_gradient
                 self.gradient_cost+=self.layers[-1].gradient_cost
-                self.gradient_cost_inv+=self.layers[-1].gradient_cost_inv
                 
         self.output=self.layers[-1].output
         self.params = [param for layer in self.layers for param in layer.params]
@@ -139,7 +137,7 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
     network = LMLP(
         rng=rng,
         input=x,
-        info_layers=[(5,1,20),(10,20,20),(10,20,20),(5,20,1)]
+        info_layers=[(5,1,20),(5,20,20),(5,20,20),(5,20,1)]
     )
     cost = (network.mse(y)+gradient_reg/(1.0-network.gradient_cost))
     if print_initial_parameters:
@@ -180,12 +178,6 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
     get_gradient_max = theano.function(
         inputs=[],
         outputs=network.max_gradient,
-        givens={
-        }
-    )
-    get_gradient_min = theano.function(
-        inputs=[],
-        outputs=network.min_gradient,
         givens={
         }
     )
@@ -276,5 +268,5 @@ def example_predict(length,data_num):
     plt.show()
 
 if __name__ == '__main__':
-    example_train(data_num=0)
+    example_train(data_num=1)
     example_predict(1000,0)
