@@ -10,12 +10,12 @@ from ops import tmax,tmin
 
 class LipConvLayer(object):
     def __init__(self,rng,input,shape,W=None,b=None,init=0):
-        #shape =(num images,
-        #        height,width,
-        #        filter height, filter width
-        #        num input feature maps,
-        #        num intermediate filters per output map, 
-        #        num output feature maps,
+        #shape =(num images(0),
+        #        height(1),width(2),
+        #        filter height(3), filter width(4)
+        #        num input feature maps(5),
+        #        num intermediate filters per output map(6), 
+        #        num output feature maps(7),
 
         #correspondes to "valid" filter
 
@@ -64,7 +64,7 @@ class LipConvLayer(object):
             intermediate.append(conv_out+self.b[i].dimshuffle('x',0,'x','x'))
         self.output=T.max(intermediate,axis=0)
         self.params=[self.W,self.b]
-        self.gradient_norms=T.sum(self.W,axis=(1,2,3))
+        self.gradient_norms=T.sum(abs(self.W),axis=(1,2,3))
         self.gradient_cost=T.sum(tmax(self.gradient_norms-1.0,0.0))
         self.max_gradient=T.max(self.gradient_norms)
 
@@ -121,6 +121,7 @@ def test_mnist(n_epoch=1000,batch_size=40):
     test_set_x, test_set_y = datasets[2]
 
     # compute number of minibatches for training, validation and testing
+    #n_train_batches = 1
     n_train_batches = train_set_x.get_value(borrow=True).shape[0]//batch_size
     n_valid_batches = valid_set_x.get_value(borrow=True).shape[0]//batch_size
     n_test_batches = test_set_x.get_value(borrow=True).shape[0]//batch_size
