@@ -243,7 +243,7 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
                         print(param.get_value())
                 with open('test_mlp_model.pkl', 'wb') as f:
                     pickle.dump(network, f)
-                example_predict(1000,data_num)
+                #example_predict(1000,data_num)
         epoch+=1
 
     end_time = timeit.default_timer()
