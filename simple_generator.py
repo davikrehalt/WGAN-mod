@@ -8,6 +8,28 @@ from ops import tmax,tmin
 from theano.tensor.shared_randomstreams import RandomStreams
 from lmlp import LMLP
 
+class Simple_Generator(object):
+    def __init__(self,rng,input_rand,g_shape,r_shape):
+        self.input=input_rand
+        self.g_shape=g_shape
+        self.r_shape=r_shape
+        self.generator = LMLP(
+            rng=rng,
+            input=input_rand,
+            info_layers=g_shape,
+            init=2
+        )
+        self.output=self.generator.output
+        self.reversor = LMLP(
+            rng=rng,
+            input=self.output,
+            info_layers=r_shape
+        ) 
+        self.g_params=self.generator.params
+        self.r_params=self.reversor.params
+        self.mse = self.reversor.mse
+        self.gradient_cost=self.reversor.gradient_cost
+        self.max_gradient = self.reversor.max_gradient
 
 def example_train(n_epochs=1000,batch_size=200):
     import timeit
@@ -22,30 +44,23 @@ def example_train(n_epochs=1000,batch_size=200):
     print('... building the model')
     rng = np.random.RandomState(1001)
     trng = RandomStreams(seed=234)
-    x_rand = T.matrix()
-    y = T.matrix()
+    x_rand = T.matrix('x_rand')
 
-    generator = LMLP(
+    generator = Simple_Generator(
         rng=rng,
-        input=x_rand,
-        info_layers=g_shape,
-        init=2
+        input_rand=x_rand,
+        g_shape=g_shape,
+        r_shape=r_shape
     )
-
-    reversor = LMLP(
-        rng=rng,
-        input=generator.output,
-        info_layers=r_shape
-    ) 
-
-    r_cost = reversor.mse(x_rand)+1.0/(1.0-reversor.gradient_cost)
-    r_updates = rmsprop(r_cost,reversor.params)
+        
+    r_cost = generator.mse(x_rand)+1.0/(1.0-generator.gradient_cost)
+    r_updates = rmsprop(r_cost,generator.r_params)
 
     f = lambda x:((1.0-T.dot(x**2,np.array([[1.0],[1.0]])))**2).mean()
     cost = f(generator.output)
 
-    g_cost = reversor.mse(x_rand)+cost
-    g_updates = rmsprop(g_cost,generator.params)
+    g_cost = generator.mse(x_rand)+cost
+    g_updates = rmsprop(g_cost,generator.g_params)
 
     train_reversor = theano.function(
         inputs=[],
@@ -59,6 +74,7 @@ def example_train(n_epochs=1000,batch_size=200):
             )
         }
     )
+
     train_generator = theano.function(
         inputs=[],
         outputs=g_cost,
@@ -84,7 +100,7 @@ def example_train(n_epochs=1000,batch_size=200):
     )
     test_reversor = theano.function(
         inputs=[],
-        outputs=reversor.mse(x_rand),
+        outputs=generator.mse(x_rand),
         givens={
             x_rand : trng.uniform(
                 size=(batch_size, g_shape[0][1]), 
@@ -93,9 +109,9 @@ def example_train(n_epochs=1000,batch_size=200):
             )
         }
     )
-    get_max_grad = theano.function(
+    get_max_gradient = theano.function(
         inputs=[],
-        outputs=reversor.max_gradient
+        outputs=generator.max_gradient
     )
 
     print('... training')
@@ -106,16 +122,16 @@ def example_train(n_epochs=1000,batch_size=200):
         if epoch % plot_time == 0:
             if print_validation_g_parameters:
                 print('printing gradient parameters')
-                for param in generator.params:
+                for param in generator.g_params:
                     print(param.get_value())
             if print_validation_r_parameters:
                 print('printing reversor parameters')
-                for param in reversor.params:
+                for param in reversor.r_params:
                     print(param.get_value())
             with open('test_generator_model.pkl', 'wb') as f:
-                pickle.dump(generator, f)
+                pickle.dump(generator.generator, f)
             with open('test_reversor_model.pkl', 'wb') as f:
-                pickle.dump(reversor, f)
+                pickle.dump(generator.reversor, f)
             example_graph()
 
         for _ in range(g_per_epoch):
@@ -126,7 +142,7 @@ def example_train(n_epochs=1000,batch_size=200):
 
         gen_cost=test_generator()
         rev_cost=test_reversor()
-        max_grad=get_max_grad()
+        max_grad=get_max_gradient()
         print('epoch %i, generator cost %f, reversor cost %f, max gradient %f' % (
             epoch,gen_cost,rev_cost,max_grad))
         

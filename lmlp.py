@@ -14,8 +14,11 @@ class Lipshitz_Layer(object):
                 min_value = -1.0 / n_in
                 max_value = 1.0 / n_in
             elif init == 1:
-                min_value = -sqrt(3.0/n_in)
-                max_value = sqrt(3.0/n_in)
+                min_value = -np.sqrt(3.0/n_in)
+                max_value = np.sqrt(3.0/n_in)
+            elif init == 2:
+                min_value = 0.5 / n_in
+                max_value = 1.5 / n_in
             W_values = np.asarray(
                 rng.uniform(
                     low=min_value,
@@ -47,8 +50,10 @@ class Lipshitz_Layer(object):
 
 class LMLP(object):
     def __init__(self, rng, input, info_layers,params=None,init=0):
+        #info_layer has one entry per layer
+        #n_max,n_in,n_out
         self.input = input
-        current_input=input
+        current_input=self.input
         self.layers=[]
         self.gradient_cost=0.0
         self.max_gradient=1.0

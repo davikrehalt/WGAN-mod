@@ -73,7 +73,7 @@ def example_train(n_epochs=100, batch_size=20,gradient_reg=1.0):
         for param in network.params:
             print(param.get_value())
 
-    print_gradient_max = theano.function(
+    get_max_gradient = theano.function(
         inputs=[],
         outputs=network.max_gradient,
         givens={
@@ -135,7 +135,7 @@ def example_train(n_epochs=100, batch_size=20,gradient_reg=1.0):
                 validation_losses = [validate_model(i) for i
                                      in range(n_valid_batches)]
                 this_validation_loss = np.mean(validation_losses)
-                this_gradient_max = print_gradient_max()
+                this_gradient_max = get_max_gradient()
 
                 print(
                     'epoch %i, minibatch %i/%i, validation mean square error %f, max_gradient %f' %

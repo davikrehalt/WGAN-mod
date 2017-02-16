@@ -8,7 +8,6 @@ import theano
 import numpy as np
 import theano.tensor as T
 
-
 __docformat__ = 'restructedtext en'
 def load_data_mnist():
     dataset='mnist.pkl.gz'
@@ -35,10 +34,12 @@ def load_data_mnist():
         shared_x = theano.shared(np.asarray(data_x,
                                                dtype=theano.config.floatX),
                                  borrow=borrow)
-        shared_y = theano.shared(np.asarray(data_y,
+        one_hot_y = np.zeros((data_y.shape[0],10))
+        one_hot_y[range(data_y.shape[0]),data_y]=1.0
+        shared_y = theano.shared(np.asarray(one_hot_y,
                                                dtype=theano.config.floatX),
                                  borrow=borrow)
-        return shared_x, T.cast(shared_y, 'int32')
+        return shared_x, shared_y 
 
     test_set_x, test_set_y = shared_dataset(test_set)
     valid_set_x, valid_set_y = shared_dataset(valid_set)
