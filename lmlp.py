@@ -31,7 +31,7 @@ class Lipshitz_Layer(object):
 
         if b is None:
             b_values = np.asarray(
-                rng
+                rng.uniform(
                     low=-0.5,
                     high=0.5,
                     size=(n_max,n_out)
