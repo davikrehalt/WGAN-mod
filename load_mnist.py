@@ -13,17 +13,23 @@ __docformat__ = 'restructedtext en'
 def load_data_mnist():
     dataset='mnist.pkl.gz'
     data_dir, data_file = os.path.split(dataset)
-    if data_dir == "" and not os.path.isfile(dataset):
-        # Check if dataset is in the data directory.
+    if not os.path.isfile(dataset):
         new_path = os.path.join(
             os.path.split(__file__)[0],
             "..",
             "data",
             dataset
         )
-        if os.path.isfile(new_path) or data_file == 'mnist.pkl.gz':
-            dataset = new_path
+        dataset = new_path
 
+    if not os.path.isfile(dataset):
+        dataset='mnist.pkl.gz'
+        from six.moves import urllib
+        origin = (
+            'http://www.iro.umontreal.ca/~lisa/deep/data/mnist/mnist.pkl.gz'
+        )
+        print('Downloading data from %s' % origin)
+        urllib.request.urlretrieve(origin, dataset)
     # Load the dataset
     with gzip.open('mnist.pkl.gz', 'rb') as f:
         try:
