@@ -242,5 +242,5 @@ def example_predict(length,data_num):
     plt.show()
 
 if __name__ == '__main__':
-    example_train(data_num=1)
+    example_train(data_num=0)
     example_predict(1000,0)
