@@ -31,7 +31,7 @@ class Lipshitz_Layer(object):
 
         if b is None:
             b_values = np.asarray(
-                rng.uniform(
+                rng
                     low=-0.5,
                     high=0.5,
                     size=(n_max,n_out)
@@ -45,11 +45,9 @@ class Lipshitz_Layer(object):
         self.params=[self.W,self.b]
         self.output = (T.dot(self.input, self.W) + self.b).max(axis=1)
         self.pre_gradient_norms=T.sum(abs(self.W),axis=1)
-        self.gradient_norms=tmax(self.pre_gradient_norms,1.0).dimshuffle(
-            0,'x',1)
-        self.new_W = self.W/self.gradient_norms
+        self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
         self.max_gradient=T.max(self.pre_gradient_norms)
-        self.gradient_cost=T.sum(self.gradient_norms)
+        self.gradient_cost=T.sum(self.gradient_norms-1.0)
 
 class LMLP(object):
     def __init__(self, rng, input, info_layers,params=None,init=0):
@@ -60,7 +58,6 @@ class LMLP(object):
         self.layers=[]
         self.max_gradient=1.0
         self.gradient_cost=0.0
-        self.updates=[]
         if params is None:
             for info in info_layers:
                 self.layers.append(Lipshitz_Layer(
@@ -74,7 +71,6 @@ class LMLP(object):
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
                 self.gradient_cost+=self.layers[-1].gradient_cost
-                self.updates.append((self.layers[-1].W,self.layers[-1].new_W))
         else:
             index = 0
             for info in info_layers:
@@ -91,7 +87,6 @@ class LMLP(object):
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
                 self.gradient_cost+=self.layers[-1].gradient_cost
-                self.updates.append((self.layers[-1].W,self.layers[-1].new_W))
                 
         self.output=self.layers[-1].output
         self.params = [param for layer in self.layers for param in layer.params]
@@ -179,10 +174,6 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
             x: train_set_x[index * batch_size: (index + 1) * batch_size],
             y: train_set_y[index * batch_size: (index + 1) * batch_size]
         }
-    )
-    rescale_model = theano.function(
-        inputs=[],
-        updates=network.updates,
     )
     print('... training')
 
