@@ -67,7 +67,7 @@ class LipConvLayer(object):
         self.pre_gradient_norms=T.sum(abs(self.W),axis=(2,3,4))
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
         self.max_gradient=T.max(self.pre_gradient_norms)
-        self.gradient_cost=T.sum(self.gradient_norms-1.0)
+        self.gradient_cost=1.0+T.sum(self.gradient_norms-1.0)
 
 class LCNN(object):
     def __init__(self, rng, input, shape_layers,params=None,init=0):
@@ -75,7 +75,7 @@ class LCNN(object):
         current_input=self.input
         self.layers=[]
         self.max_gradient=1.0
-        self.gradient_cost=0.0
+        self.gradient_cost=1.0
         if params is None:
             for shape in shape_layers:
                 self.layers.append(LipConvLayer(
@@ -86,7 +86,7 @@ class LCNN(object):
                 ))
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
-                self.gradient_cost+=self.layers[-1].gradient_cost
+                self.gradient_cost*=self.layers[-1].gradient_cost
         else:
             index = 0
             for shape in shape_layers:
@@ -100,7 +100,7 @@ class LCNN(object):
                 index+=2
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
-                self.gradient_cost+=self.layers[-1].gradient_cost
+                self.gradient_cost*=self.layers[-1].gradient_cost
                 
         self.output=self.layers[-1].output
         self.params = [param for layer in self.layers for param in layer.params]
@@ -145,9 +145,9 @@ def test_mnist(n_epoch=1000,batch_size=40):
         input=fc_layer_input,
         info_layers=fc_info
     )
-    max_gradient = convnet.max_gradient*fc_layer.max_gradient
     params = convnet.params+fc_layer.params
-    gradient_cost=fc_layer.gradient_cost+convnet.gradient_cost
+    max_gradient = convnet.max_gradient*fc_layer.max_gradient
+    gradient_cost=fc_layer.gradient_cost*convnet.gradient_cost
     cost = fc_layer.mse(y)+gradient_cost
     updates=rmsprop(cost,params)
     validate_model = theano.function(
