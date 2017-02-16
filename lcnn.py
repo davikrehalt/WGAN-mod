@@ -110,6 +110,7 @@ def test_mnist(n_epoch=1000,batch_size=40):
     
     plot_time=100
     valid_time=1
+    #one entry per layer
     CNN_shape=[[batch_size,28,28,5,5,1,5,20],[batch_size,24,24,5,5,20,5,50]]
     fc_info=[[5,20*20*50,500],[5,500,10]]
 
