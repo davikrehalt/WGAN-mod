@@ -47,7 +47,7 @@ class Lipshitz_Layer(object):
         self.pre_gradient_norms=T.sum(abs(self.W),axis=1)
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
         self.max_gradient=T.max(self.pre_gradient_norms)
-        self.gradient_cost=T.sum(self.gradient_norms-1.0)
+        self.gradient_cost=1.0+T.sum(self.gradient_norms-1.0)
 
 class LMLP(object):
     def __init__(self, rng, input, info_layers,params=None,init=0):
@@ -57,7 +57,7 @@ class LMLP(object):
         current_input=self.input
         self.layers=[]
         self.max_gradient=1.0
-        self.gradient_cost=0.0
+        self.gradient_cost=1.0
         if params is None:
             for info in info_layers:
                 self.layers.append(Lipshitz_Layer(
@@ -70,7 +70,7 @@ class LMLP(object):
                 ))
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
-                self.gradient_cost+=self.layers[-1].gradient_cost
+                self.gradient_cost*=self.layers[-1].gradient_cost
         else:
             index = 0
             for info in info_layers:
@@ -86,7 +86,7 @@ class LMLP(object):
                 index+=2
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
-                self.gradient_cost+=self.layers[-1].gradient_cost
+                self.gradient_cost*=self.layers[-1].gradient_cost
                 
         self.output=self.layers[-1].output
         self.params = [param for layer in self.layers for param in layer.params]
