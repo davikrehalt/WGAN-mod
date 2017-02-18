@@ -5,7 +5,7 @@ import theano
 import theano.tensor as T
 from theano.tensor.nnet import conv2d
 from lmlp import LMLP
-from optimize import rmsprop,adam
+from optimize import rmsprop
 from ops import tmax,tmin
 
 class LipConvLayer(object):
@@ -68,8 +68,7 @@ class LipConvLayer(object):
         self.pre_gradient_norms=T.sum(abs(self.W),axis=(2,3,4))
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
         self.max_gradient=T.max(self.pre_gradient_norms)
-        self.scale_W = self.W / self.gradient_norms.dimshuffle(
-            0,1,'x','x','x')
+        self.scale_W = self.W / self.gradient_norms.dimshuffle(0,1,'x','x','x')
         self.scale_params=[self.scale_W,self.b]
 
 class LCNN(object):
