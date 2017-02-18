@@ -56,7 +56,7 @@ class LipConvLayer(object):
         for i in range(shape[6]):
             conv_out=conv2d(
                 input=input,
-                filters=self.W[i],
+                filters=T.clip(self.W[i],-2.0,2.0),
                 border_mode='valid',
                 filter_shape=filter_shape[1:],
                 input_shape=image_shape
@@ -67,7 +67,7 @@ class LipConvLayer(object):
         self.pre_gradient_norms=T.sum(abs(self.W),axis=(2,3,4))
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
         self.max_gradient=T.max(self.pre_gradient_norms)
-        self.gradient_cost=T.sum(1.0/(2.0-self.gradient_norms)-1.0)
+        self.gradient_cost=T.sum(T.exp(self.gradient_norms-1.0)-1.0)
 
 class LCNN(object):
     def __init__(self, rng, input, shape_layers,params=None,init=0):
@@ -75,6 +75,7 @@ class LCNN(object):
         current_input=self.input
         self.layers=[]
         self.max_gradient=1.0
+        self.max_gradient_list=[]
         self.gradient_cost=0.0
         if params is None:
             for shape in shape_layers:
@@ -86,6 +87,7 @@ class LCNN(object):
                 ))
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
+                self.max_gradient_list.append(self.layers[-1].max_gradient)
                 self.gradient_cost+=self.layers[-1].gradient_cost
         else:
             index = 0
@@ -100,6 +102,7 @@ class LCNN(object):
                 index+=2
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
+                self.max_gradient_list.append(self.layers[-1].max_gradient)
                 self.gradient_cost+=self.layers[-1].gradient_cost
                 
         self.output=self.layers[-1].output
@@ -145,11 +148,9 @@ def test_mnist(n_epoch=1000,batch_size=500):
         info_layers=fc_info
     )
     params = convnet.params+fc_layer.params
-    print('number of parameters %d' % len(params))
     max_gradient = convnet.max_gradient*fc_layer.max_gradient
     gradient_cost=fc_layer.gradient_cost+convnet.gradient_cost
     cost = fc_layer.mse(y)
-    #cost = fc_layer.mse(y)+gradient_cost
     updates=rmsprop(cost,params)
     validate_model = theano.function(
         inputs=[index],
@@ -186,6 +187,12 @@ def test_mnist(n_epoch=1000,batch_size=500):
         givens={
         }
     )
+    get_gradient_max_list = theano.function(
+        inputs=[],
+        outputs=convnet.max_gradient_list,
+        givens={
+        }
+    )
     get_gradient_cost_cnn = theano.function(
         inputs=[],
         outputs=fc_layer.gradient_cost,
@@ -212,6 +219,7 @@ def test_mnist(n_epoch=1000,batch_size=500):
             validation_acc = [validate_model_acc(i) for i
                                     in range(n_valid_batches)]
             this_validation_acc = np.mean(validation_acc)
+            '''
             print(
                 'epoch %i,mse %f, g_max %f,acc %f' %
                 (
@@ -227,12 +235,14 @@ def test_mnist(n_epoch=1000,batch_size=500):
                 (
                     epoch,
                     this_validation_loss,
-                    get_gradient_max(),
+                    get_gradient_max,
                     get_gradient_cost_fc(),
                     get_gradient_cost_cnn(),
                     this_validation_acc
                 )
-            )'''
+            )
+            print(get_gradient_max_list)
+            
         for minibatch_index in range(n_train_batches):
             minibatch_avg_cost = train_model(minibatch_index)
 
