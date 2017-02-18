@@ -67,7 +67,7 @@ class LipConvLayer(object):
         self.pre_gradient_norms=T.sum(abs(self.W),axis=(2,3,4))
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
         self.max_gradient=T.max(self.pre_gradient_norms)
-        self.gradient_cost=T.sum(self.gradient_norms-1.0)
+        self.gradient_cost=T.sum(1.0/(2.0-self.gradient_norms)-1.0)
 
 class LCNN(object):
     def __init__(self, rng, input, shape_layers,params=None,init=0):

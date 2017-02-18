@@ -47,7 +47,7 @@ class Lipshitz_Layer(object):
         self.pre_gradient_norms=T.sum(abs(self.W),axis=1)
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
         self.max_gradient=T.max(self.pre_gradient_norms)
-        self.gradient_cost=1.0+T.sum(self.gradient_norms-1.0)
+        self.gradient_cost=T.sum(1.0/(2.0-self.gradient_norms)-1.0)
 
 class LMLP(object):
     def __init__(self, rng, input, info_layers,params=None,init=0):
@@ -57,7 +57,7 @@ class LMLP(object):
         current_input=self.input
         self.layers=[]
         self.max_gradient=1.0
-        self.gradient_cost=1.0
+        self.gradient_cost=0.0
         if params is None:
             for info in info_layers:
                 self.layers.append(Lipshitz_Layer(
@@ -70,7 +70,7 @@ class LMLP(object):
                 ))
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
-                self.gradient_cost*=self.layers[-1].gradient_cost
+                self.gradient_cost+=self.layers[-1].gradient_cost
         else:
             index = 0
             for info in info_layers:
@@ -86,7 +86,7 @@ class LMLP(object):
                 index+=2
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
-                self.gradient_cost*=self.layers[-1].gradient_cost
+                self.gradient_cost+=self.layers[-1].gradient_cost
                 
         self.output=self.layers[-1].output
         self.params = [param for layer in self.layers for param in layer.params]
@@ -164,6 +164,12 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
         givens={
         }
     )
+    get_gradient_cost = theano.function(
+        inputs=[],
+        outputs=network.gradient_cost,
+        givens={
+        }
+    )
     num_params = len(network.params)
     updates=rmsprop(cost,network.params)
     train_model = theano.function(
@@ -194,15 +200,17 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
                                      in range(n_valid_batches)]
                 this_validation_loss = np.mean(validation_losses)
                 this_gradient_max = get_gradient_max()
+                this_gradient_cost = get_gradient_cost()
 
                 print(
-                    'epoch %i, minibatch %i/%i, validation mean square error %f, gradient max %f' %
+                    'epoch %i, minibatch %i/%i, mse %f, g_max %f, g_cost %f' %
                     (
                         epoch,
                         minibatch_index + 1,
                         n_train_batches,
                         this_validation_loss,
-                        this_gradient_max
+                        this_gradient_max,
+                        this_gradient_cost
                     )
                 )
             if (iter + 1) % plot_frequency == 0:
@@ -242,5 +250,5 @@ def example_predict(length,data_num):
     plt.show()
 
 if __name__ == '__main__':
-    example_train(data_num=0)
-    example_predict(1000,0)
+    example_train(data_num=1)
+    example_predict(1000,1)
