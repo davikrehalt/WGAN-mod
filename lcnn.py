@@ -68,7 +68,7 @@ class LipConvLayer(object):
         self.pre_gradient_norms=T.sum(abs(self.W),axis=(2,3,4))
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
         self.max_gradient=T.max(self.pre_gradient_norms)
-        self.scale_W = W / self.gradient_norms.dimshuffle(
+        self.scale_W = self.W / self.gradient_norms.dimshuffle(
             0,1,'x','x','x')
         self.scale_params=[self.scale_W,self.b]
 
@@ -151,16 +151,16 @@ def test_mnist(n_epoch=1000,batch_size=500):
         input=fc_layer_input,
         info_layers=fc_info
     )
+    print('number of parameters: ' + str(fc_layer.n_params+convnet.n_params))
+    params = convnet.params+fc_layer.params
+    scale_params = convnet.scale_params+fc_layer.scale_params
+    max_gradient = convnet.max_gradient*fc_layer.max_gradient
     get_gradient_max = theano.function(
         inputs=[],
         outputs=max_gradient,
         givens={
         }
     )
-    print('number of parameters: ' + str(fc_layer.n_params+convnet.n_params))
-    params = convnet.params+fc_layer.params
-    scale_params = convnet.scale_params+fc_layer.scale_params
-    max_gradient = convnet.max_gradient*fc_layer.max_gradient
     cost = fc_layer.mse(y)
     validate_model = theano.function(
         inputs=[index],
