@@ -3,7 +3,7 @@ import numpy as np
 import six.moves.cPickle as pickle
 import theano
 import theano.tensor as T
-from optimize import rmsprop,sgd
+from optimize import rmsprop
 from ops import tmax,tmin
 
 class Lipshitz_Layer(object):
