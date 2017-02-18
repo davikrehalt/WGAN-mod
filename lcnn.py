@@ -26,6 +26,7 @@ class LipConvLayer(object):
 
         self.input=input 
         n_in = shape[3]*shape[4]*shape[5]
+        self.n_params=np.prod(filter_shape)+np.prod(bias_shape)
         if W is None:
             if init == 0:
                 min_value = -1.0 / n_in
@@ -76,6 +77,7 @@ class LCNN(object):
         self.layers=[]
         self.max_gradient=1.0
         self.max_gradient_list=[]
+        self.n_params=0
         self.gradient_cost=0.0
         if params is None:
             for shape in shape_layers:
@@ -89,6 +91,7 @@ class LCNN(object):
                 self.max_gradient*=self.layers[-1].max_gradient
                 self.max_gradient_list.append(self.layers[-1].max_gradient)
                 self.gradient_cost+=self.layers[-1].gradient_cost
+                self.n_params+=self.layers[-1].n_params
         else:
             index = 0
             for shape in shape_layers:
@@ -104,6 +107,7 @@ class LCNN(object):
                 self.max_gradient*=self.layers[-1].max_gradient
                 self.max_gradient_list.append(self.layers[-1].max_gradient)
                 self.gradient_cost+=self.layers[-1].gradient_cost
+                self.n_params+=self.layers[-1].n_params
                 
         self.output=self.layers[-1].output
         self.params = [param for layer in self.layers for param in layer.params]
@@ -113,11 +117,13 @@ def test_mnist(n_epoch=1000,batch_size=500):
     import timeit
     
     plot_time=100
-    learning_rate=0.1
+    learning_rate=0.05
     valid_time=1
     #one entry per layer
-    CNN_shape=[[batch_size,28,28,5,5,1,2,20],[batch_size,24,24,5,5,20,2,50]]
-    fc_info=[[2,20*20*50,500],[2,500,10]]
+    #CNN_shape=[[batch_size,28,28,5,5,1,2,20],[batch_size,24,24,5,5,20,2,50]]
+    CNN_shape=[[batch_size,28,28,5,5,1,2,20],[batch_size,24,24,5,5,20,2,20],[batch_size,20,20,5,5,20,2,20]]
+    #fc_info=[[2,20*20*50,500],[2,500,10]]
+    fc_info=[[2,16*16*20,500],[2,500,10]]
 
     datasets = load_data_mnist()
 
@@ -149,6 +155,7 @@ def test_mnist(n_epoch=1000,batch_size=500):
         input=fc_layer_input,
         info_layers=fc_info
     )
+    print('number of parameters: ' + str(fc_layer.n_params+convnet.n_params))
     params = convnet.params+fc_layer.params
     max_gradient = convnet.max_gradient*fc_layer.max_gradient
     gradient_cost=fc_layer.gradient_cost+convnet.gradient_cost
