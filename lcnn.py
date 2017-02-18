@@ -67,7 +67,9 @@ class LipConvLayer(object):
         self.pre_gradient_norms=T.sum(abs(self.W),axis=(2,3,4))
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
         self.max_gradient=T.max(self.pre_gradient_norms)
-        self.gradient_cost=T.sum((self.gradient_norms-1.0)**2)
+        self.scale_W = W / self.gradient_norms.dimshuffle(
+            0,1,'x','x','x')
+        self.scale_params=[self.scale_W,self.b]
 
 class LCNN(object):
     def __init__(self, rng, input, shape_layers,params=None,init=0):
@@ -75,8 +77,6 @@ class LCNN(object):
         current_input=self.input
         self.layers=[]
         self.max_gradient=1.0
-        self.max_gradient_list=[]
-        self.gradient_cost=0.0
         if params is None:
             for shape in shape_layers:
                 self.layers.append(LipConvLayer(
@@ -87,8 +87,6 @@ class LCNN(object):
                 ))
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
-                self.max_gradient_list.append(self.layers[-1].max_gradient)
-                self.gradient_cost+=self.layers[-1].gradient_cost
         else:
             index = 0
             for shape in shape_layers:
@@ -102,18 +100,16 @@ class LCNN(object):
                 index+=2
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
-                self.max_gradient_list.append(self.layers[-1].max_gradient)
-                self.gradient_cost+=self.layers[-1].gradient_cost
                 
         self.output=self.layers[-1].output
         self.params = [param for layer in self.layers for param in layer.params]
+        self.scale_params=[param for layer in self.layers for param in layer.scale_params]
+
 
 def test_mnist(n_epoch=1000,batch_size=500):
     from load_mnist import load_data_mnist
     import timeit
     
-    plot_time=100
-    learning_rate=0.1
     valid_time=1
     #one entry per layer
     CNN_shape=[[batch_size,28,28,5,5,1,2,20],[batch_size,24,24,5,5,20,2,50]]
@@ -149,10 +145,16 @@ def test_mnist(n_epoch=1000,batch_size=500):
         input=fc_layer_input,
         info_layers=fc_info
     )
+    get_gradient_max = theano.function(
+        inputs=[],
+        outputs=max_gradient,
+        givens={
+        }
+    )
     params = convnet.params+fc_layer.params
+    scale_params = convnet.scale_params+fc_layer.scale_params
     max_gradient = convnet.max_gradient*fc_layer.max_gradient
-    gradient_cost=fc_layer.gradient_cost+convnet.gradient_cost
-    cost = fc_layer.mse(y)+gradient_cost
+    cost = fc_layer.mse(y)
     validate_model = theano.function(
         inputs=[index],
         outputs=fc_layer.mse(y),
@@ -173,11 +175,7 @@ def test_mnist(n_epoch=1000,batch_size=500):
         }
     )
 
-    grads = T.grad(cost, params)
-    updates = [
-        (param_i, param_i - learning_rate * grad_i)
-        for param_i, grad_i in zip(params, grads)
-    ]
+    updates=rmsprop(cost,params)
     train_model = theano.function(
         inputs=[index],
         outputs=cost,
@@ -187,17 +185,9 @@ def test_mnist(n_epoch=1000,batch_size=500):
             y: train_set_y[index * batch_size: (index + 1) * batch_size]
         }
     )
-    get_gradient_max = theano.function(
+    rescale_model = theano.function(
         inputs=[],
-        outputs=max_gradient,
-        givens={
-        }
-    )
-    get_gradient_cost = theano.function(
-        inputs=[],
-        outputs=gradient_cost,
-        givens={
-        }
+        updates=list(zip(params,scale_params))
     )
     print('... training')
 
@@ -214,12 +204,11 @@ def test_mnist(n_epoch=1000,batch_size=500):
                                     in range(n_valid_batches)]
             this_validation_acc = np.mean(validation_acc)
             print(
-                'epoch %i,mse %f, g_max %f,g_cost %f, acc %f' %
+                'epoch %i,mse %f, g_max %f, acc %f' %
                 (
                     epoch,
                     this_validation_loss,
                     get_gradient_max(),
-                    get_gradient_cost(),
                     this_validation_acc
                 )
             )

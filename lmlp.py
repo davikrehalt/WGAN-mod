@@ -3,7 +3,7 @@ import numpy as np
 import six.moves.cPickle as pickle
 import theano
 import theano.tensor as T
-from optimize import rmsprop
+from optimize import rmsprop,sgd
 from ops import tmax,tmin
 
 class Lipshitz_Layer(object):
@@ -46,8 +46,9 @@ class Lipshitz_Layer(object):
         self.output = (T.dot(self.input,self.W) + self.b).max(axis=1)
         self.pre_gradient_norms=T.sum(abs(self.W),axis=1)
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
+        self.scale_W = W / self.gradient_norms.dimshuffle(0,'x',1)
+        self.scale_params=[self.scale_W,self.b]
         self.max_gradient=T.max(self.pre_gradient_norms)
-        self.gradient_cost=T.sum((self.gradient_norms-1.0)**2)
 
 class LMLP(object):
     def __init__(self, rng, input, info_layers,params=None,init=0):
@@ -57,7 +58,6 @@ class LMLP(object):
         current_input=self.input
         self.layers=[]
         self.max_gradient=1.0
-        self.gradient_cost=0.0
         if params is None:
             for info in info_layers:
                 self.layers.append(Lipshitz_Layer(
@@ -70,7 +70,6 @@ class LMLP(object):
                 ))
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
-                self.gradient_cost+=self.layers[-1].gradient_cost
         else:
             index = 0
             for info in info_layers:
@@ -86,10 +85,10 @@ class LMLP(object):
                 index+=2
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
-                self.gradient_cost+=self.layers[-1].gradient_cost
                 
         self.output=self.layers[-1].output
         self.params = [param for layer in self.layers for param in layer.params]
+        self.scale_params = [param for layer in self.layers for param in layer.scale_params]
     def mse(self,y):
         return T.mean((self.output - y) ** 2)
 
@@ -114,9 +113,6 @@ def load_data_test(data_num):
     return rval
 
 def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
-    print_initial_parameters = False
-    print_validation_parameters = False
-    print_end_parameters = False
     plot_time=100
 
     import timeit
@@ -125,7 +121,6 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
     train_set_x, train_set_y = datasets[1]
     valid_set_x, valid_set_y = datasets[0]
 
-    # compute number of minibatches for training, validation and testing
     n_train_batches = train_set_x.get_value(borrow=True).shape[0] // batch_size
     n_valid_batches = valid_set_x.get_value(borrow=True).shape[0] // batch_size
 
@@ -141,15 +136,9 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
     network = LMLP(
         rng=rng,
         input=x,
-        info_layers=[(5,1,20),(5,20,20),(5,20,20),(5,20,1)]
+        info_layers=[(5,1,20),(5,20,100),(5,100,20),(5,20,1)]
     )
-    cost = network.mse(y)+1.0*network.gradient_cost
-    if print_initial_parameters:
-        print('printing initial parameters')
-        for param in network.params:
-            print(param.get_value())
-    # compiling a Theano function that computes the mistakes that are made
-    # by the model on a minibatch
+    cost = network.mse(y)
     validate_model = theano.function(
         inputs=[index],
         outputs=network.mse(y),
@@ -164,12 +153,6 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
         givens={
         }
     )
-    get_gradient_cost = theano.function(
-        inputs=[],
-        outputs=network.gradient_cost,
-        givens={
-        }
-    )
     num_params = len(network.params)
     updates=rmsprop(cost,network.params)
     train_model = theano.function(
@@ -180,6 +163,10 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
             x: train_set_x[index * batch_size: (index + 1) * batch_size],
             y: train_set_y[index * batch_size: (index + 1) * batch_size]
         }
+    )
+    rescale_model = theano.function(
+        inputs=[],
+        updates=list(zip(network.params,network.scale_params))
     )
     print('... training')
 
@@ -192,6 +179,7 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
     while (epoch < n_epochs):
         for minibatch_index in range(n_train_batches):
             minibatch_avg_cost = train_model(minibatch_index)
+            rescale_model()
 
             iter = epoch * n_train_batches + minibatch_index
             if (iter + 1) % validation_frequency == 0:
@@ -200,24 +188,18 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
                                      in range(n_valid_batches)]
                 this_validation_loss = np.mean(validation_losses)
                 this_gradient_max = get_gradient_max()
-                this_gradient_cost = get_gradient_cost()
 
                 print(
-                    'epoch %i, minibatch %i/%i, mse %f, g_max %f, g_cost %f' %
+                    'epoch %i, minibatch %i/%i, mse %f, g_max %f' %
                     (
                         epoch,
                         minibatch_index + 1,
                         n_train_batches,
                         this_validation_loss,
-                        this_gradient_max,
-                        this_gradient_cost
+                        this_gradient_max
                     )
                 )
             if (iter + 1) % plot_frequency == 0:
-                if print_validation_parameters:
-                    print('printing parameters')
-                    for param in network.params:
-                        print(param.get_value())
                 with open('test_mlp_model.pkl', 'wb') as f:
                     pickle.dump(network, f)
                 example_predict(1000,data_num)
@@ -225,10 +207,6 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
 
     end_time = timeit.default_timer()
     print(('The code ran for %.2fs' % (end_time - start_time)))
-    if print_end_parameters:
-        print('printing end parameters')
-        for param in network.params:
-            print(param.get_value())
 
 def example_predict(length,data_num):
     import matplotlib.pyplot as plt
