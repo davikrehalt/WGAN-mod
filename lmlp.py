@@ -43,7 +43,7 @@ class Lipshitz_Layer(object):
         self.W = W
         self.b = b
         self.params=[self.W,self.b]
-        self.output = (T.dot(self.input, T.clip(self.W,-1.1/n_in,1.1/n_in)) + self.b).max(axis=1)
+        self.output = (T.dot(self.input,self.W) + self.b).max(axis=1)
         self.pre_gradient_norms=T.sum(abs(self.W),axis=1)
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
         self.max_gradient=T.max(self.pre_gradient_norms)
@@ -143,7 +143,7 @@ def example_train(n_epochs=1000, batch_size=20,gradient_reg=1.0,data_num=2):
         input=x,
         info_layers=[(5,1,20),(5,20,20),(5,20,20),(5,20,1)]
     )
-    cost = network.mse(y)+0.0*network.gradient_cost
+    cost = network.mse(y)+1.0*network.gradient_cost
     if print_initial_parameters:
         print('printing initial parameters')
         for param in network.params:
