@@ -46,7 +46,7 @@ class Lipshitz_Layer(object):
         self.output = (T.dot(self.input,self.W) + self.b).max(axis=1)
         self.pre_gradient_norms=T.sum(abs(self.W),axis=1)
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
-        self.scale_W = W / self.gradient_norms.dimshuffle(0,'x',1)
+        self.scale_W = self.W / self.gradient_norms.dimshuffle(0,'x',1)
         self.scale_params=[self.scale_W,self.b]
         self.max_gradient=T.max(self.pre_gradient_norms)
         self.n_params=n_max*n_out*(1+n_in)
