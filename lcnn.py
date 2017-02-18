@@ -5,7 +5,7 @@ import theano
 import theano.tensor as T
 from theano.tensor.nnet import conv2d
 from lmlp import LMLP
-from optimize import rmsprop
+from optimize import rmsprop,adam
 from ops import tmax,tmin
 
 class LipConvLayer(object):
@@ -122,8 +122,8 @@ def test_mnist(n_epoch=1000,batch_size=40):
     test_set_x, test_set_y = datasets[2]
 
     # compute number of minibatches for training, validation and testing
-    #n_train_batches = 1
-    n_train_batches = train_set_x.get_value(borrow=True).shape[0]//batch_size
+    n_train_batches = 1
+    #n_train_batches = train_set_x.get_value(borrow=True).shape[0]//batch_size
     n_valid_batches = valid_set_x.get_value(borrow=True).shape[0]//batch_size
     n_test_batches = test_set_x.get_value(borrow=True).shape[0]//batch_size
 
@@ -146,13 +146,25 @@ def test_mnist(n_epoch=1000,batch_size=40):
         info_layers=fc_info
     )
     params = convnet.params+fc_layer.params
+    print('number of parameters %d' % len(params))
     max_gradient = convnet.max_gradient*fc_layer.max_gradient
-    gradient_cost=fc_layer.gradient_cost*convnet.gradient_cost
+    gradient_cost=fc_layer.gradient_cost+convnet.gradient_cost
     cost = fc_layer.mse(y)+gradient_cost
-    updates=rmsprop(cost,params)
+    updates=rmsprop(cost,params,lr=0.0001)
     validate_model = theano.function(
         inputs=[index],
         outputs=fc_layer.mse(y),
+        givens={
+            x: valid_set_x[index * batch_size: (index + 1) * batch_size],
+            y: valid_set_y[index * batch_size: (index + 1) * batch_size]
+        }
+    )
+    prediction=T.argmax(fc_layer.output,axis=1)
+    ground_truth=T.argmax(y,axis=1)
+    accuracy=T.mean(T.eq(prediction,ground_truth))
+    validate_model_acc = theano.function(
+        inputs=[index],
+        outputs=accuracy,
         givens={
             x: valid_set_x[index * batch_size: (index + 1) * batch_size],
             y: valid_set_y[index * batch_size: (index + 1) * batch_size]
@@ -174,6 +186,18 @@ def test_mnist(n_epoch=1000,batch_size=40):
         givens={
         }
     )
+    get_gradient_cost_cnn = theano.function(
+        inputs=[],
+        outputs=fc_layer.gradient_cost,
+        givens={
+        }
+    )
+    get_gradient_cost_fc = theano.function(
+        inputs=[],
+        outputs=convnet.gradient_cost,
+        givens={
+        }
+    )
     print('... training')
 
     start_time = timeit.default_timer()
@@ -185,13 +209,18 @@ def test_mnist(n_epoch=1000,batch_size=40):
             validation_losses = [validate_model(i) for i
                                     in range(n_valid_batches)]
             this_validation_loss = np.mean(validation_losses)
-
+            validation_acc = [validate_model_acc(i) for i
+                                    in range(n_valid_batches)]
+            this_validation_acc = np.mean(validation_acc)
             print(
-                'epoch %i, error %f, gradient max %f' %
+                'epoch %i,mse %f, g_max %f,g_cost_fc %f,g_cost_cnn %f,acc %f' %
                 (
                     epoch,
                     this_validation_loss,
-                    get_gradient_max()
+                    get_gradient_max(),
+                    get_gradient_cost_fc(),
+                    get_gradient_cost_cnn(),
+                    this_validation_acc
                 )
             )
         for minibatch_index in range(n_train_batches):
