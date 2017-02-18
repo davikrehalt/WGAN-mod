@@ -145,9 +145,9 @@ def test_mnist(n_epoch=1000,batch_size=40):
         input=fc_layer_input,
         info_layers=fc_info
     )
-    max_gradient = convnet.max_gradient*fc_layer.max_gradient
     params = convnet.params+fc_layer.params
-    gradient_cost=fc_layer.gradient_cost+convnet.gradient_cost
+    max_gradient = convnet.max_gradient*fc_layer.max_gradient
+    gradient_cost=fc_layer.gradient_cost*convnet.gradient_cost
     cost = fc_layer.mse(y)+gradient_cost
     updates=rmsprop(cost,params)
     validate_model = theano.function(
