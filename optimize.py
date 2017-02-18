@@ -1,6 +1,12 @@
 import theano
 import theano.tensor as T
 import numpy as np
+def sgd(cost,params,lr):
+    grads = T.grad(cost=cost, wrt=params)
+    updates = []
+    for p, g in zip(params, grads):
+        updates.append((p, p - lr * g))
+    return updates
 def rmsprop(cost, params, lr=0.001, rho=0.9, epsilon=1e-6):
     grads = T.grad(cost=cost, wrt=params)
     updates = []
