@@ -47,7 +47,7 @@ class Lipshitz_Layer(object):
         self.pre_gradient_norms=T.sum(abs(self.W),axis=1)
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
         self.max_gradient=T.max(self.pre_gradient_norms)
-        self.gradient_cost=T.sum(T.exp(self.gradient_norms-1.0)-1.0)
+        self.gradient_cost=T.sum((self.gradient_norms-1.0)**2)
 
 class LMLP(object):
     def __init__(self, rng, input, info_layers,params=None,init=0):

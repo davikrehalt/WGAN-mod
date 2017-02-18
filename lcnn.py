@@ -56,7 +56,7 @@ class LipConvLayer(object):
         for i in range(shape[6]):
             conv_out=conv2d(
                 input=input,
-                filters=T.clip(self.W[i],-2.0,2.0),
+                filters=self.W[i],
                 border_mode='valid',
                 filter_shape=filter_shape[1:],
                 input_shape=image_shape
@@ -67,7 +67,7 @@ class LipConvLayer(object):
         self.pre_gradient_norms=T.sum(abs(self.W),axis=(2,3,4))
         self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
         self.max_gradient=T.max(self.pre_gradient_norms)
-        self.gradient_cost=T.sum(T.exp(self.gradient_norms-1.0)-1.0)
+        self.gradient_cost=T.sum((self.gradient_norms-1.0)**2)
 
 class LCNN(object):
     def __init__(self, rng, input, shape_layers,params=None,init=0):
@@ -113,6 +113,7 @@ def test_mnist(n_epoch=1000,batch_size=500):
     import timeit
     
     plot_time=100
+    learning_rate=0.1
     valid_time=1
     #one entry per layer
     CNN_shape=[[batch_size,28,28,5,5,1,2,20],[batch_size,24,24,5,5,20,2,50]]
@@ -125,7 +126,8 @@ def test_mnist(n_epoch=1000,batch_size=500):
     test_set_x, test_set_y = datasets[2]
 
     # compute number of minibatches for training, validation and testing
-    n_train_batches = train_set_x.get_value(borrow=True).shape[0]//batch_size
+    n_train_batches = 1
+    #n_train_batches = train_set_x.get_value(borrow=True).shape[0]//batch_size
     n_valid_batches = valid_set_x.get_value(borrow=True).shape[0]//batch_size
     n_test_batches = test_set_x.get_value(borrow=True).shape[0]//batch_size
 
@@ -150,8 +152,7 @@ def test_mnist(n_epoch=1000,batch_size=500):
     params = convnet.params+fc_layer.params
     max_gradient = convnet.max_gradient*fc_layer.max_gradient
     gradient_cost=fc_layer.gradient_cost+convnet.gradient_cost
-    cost = fc_layer.mse(y)
-    updates=rmsprop(cost,params)
+    cost = fc_layer.mse(y)+gradient_cost
     validate_model = theano.function(
         inputs=[index],
         outputs=fc_layer.mse(y),
@@ -172,6 +173,11 @@ def test_mnist(n_epoch=1000,batch_size=500):
         }
     )
 
+    grads = T.grad(cost, params)
+    updates = [
+        (param_i, param_i - learning_rate * grad_i)
+        for param_i, grad_i in zip(params, grads)
+    ]
     train_model = theano.function(
         inputs=[index],
         outputs=cost,
@@ -187,21 +193,9 @@ def test_mnist(n_epoch=1000,batch_size=500):
         givens={
         }
     )
-    get_gradient_max_list = theano.function(
+    get_gradient_cost = theano.function(
         inputs=[],
-        outputs=convnet.max_gradient_list,
-        givens={
-        }
-    )
-    get_gradient_cost_cnn = theano.function(
-        inputs=[],
-        outputs=fc_layer.gradient_cost,
-        givens={
-        }
-    )
-    get_gradient_cost_fc = theano.function(
-        inputs=[],
-        outputs=convnet.gradient_cost,
+        outputs=gradient_cost,
         givens={
         }
     )
@@ -219,29 +213,16 @@ def test_mnist(n_epoch=1000,batch_size=500):
             validation_acc = [validate_model_acc(i) for i
                                     in range(n_valid_batches)]
             this_validation_acc = np.mean(validation_acc)
-            '''
             print(
-                'epoch %i,mse %f, g_max %f,acc %f' %
+                'epoch %i,mse %f, g_max %f,g_cost %f, acc %f' %
                 (
                     epoch,
                     this_validation_loss,
                     get_gradient_max(),
+                    get_gradient_cost(),
                     this_validation_acc
                 )
             )
-            '''
-            print(
-                'epoch %i,mse %f, g_max %f,g_cost_fc %f,g_cost_cnn %f,acc %f' %
-                (
-                    epoch,
-                    this_validation_loss,
-                    get_gradient_max,
-                    get_gradient_cost_fc(),
-                    get_gradient_cost_cnn(),
-                    this_validation_acc
-                )
-            )
-            print(get_gradient_max_list)
             
         for minibatch_index in range(n_train_batches):
             minibatch_avg_cost = train_model(minibatch_index)
