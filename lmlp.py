@@ -49,6 +49,7 @@ class Lipshitz_Layer(object):
         self.scale_W = W / self.gradient_norms.dimshuffle(0,'x',1)
         self.scale_params=[self.scale_W,self.b]
         self.max_gradient=T.max(self.pre_gradient_norms)
+        self.n_params=n_max*n_out*(1+n_in)
 
 class LMLP(object):
     def __init__(self, rng, input, info_layers,params=None,init=0):
@@ -58,6 +59,7 @@ class LMLP(object):
         current_input=self.input
         self.layers=[]
         self.max_gradient=1.0
+        self.n_params=0
         if params is None:
             for info in info_layers:
                 self.layers.append(Lipshitz_Layer(
@@ -70,6 +72,7 @@ class LMLP(object):
                 ))
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
+                self.n_params+=self.layers[-1].n_params
         else:
             index = 0
             for info in info_layers:
@@ -85,6 +88,7 @@ class LMLP(object):
                 index+=2
                 current_input=self.layers[-1].output
                 self.max_gradient*=self.layers[-1].max_gradient
+                self.n_params+=self.layers[-1].n_params
                 
         self.output=self.layers[-1].output
         self.params = [param for layer in self.layers for param in layer.params]
