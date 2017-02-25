@@ -164,9 +164,8 @@ def example_train(n_epochs=1000):
     training_input=theano.shared(np.asarray(training_input,
                                             dtype=theano.config.floatX),
                                  borrow=True)
-    training_output=(train_set_y[:batch_size]).reshape((batch_size,28,28))
-
-    cost = T.mean((output-w)**2)
+    truth=w.reshape((batch_size,1,28,28))
+    cost = T.mean((output-truth)**2)
     updates=rmsprop(cost,params)
     train_model = theano.function(
         inputs=[],
@@ -174,11 +173,11 @@ def example_train(n_epochs=1000):
         updates=updates,
         givens={
             z: training_input,
-            w: training_output
+            w: train_set_x[:batch_size]
         }
     )
     start_time = timeit.default_timer()
-    for epoch in range(n_epoch):
+    for epoch in range(n_epochs):
         print(train_model(minibatch_index))
 
     end_time = timeit.default_timer()
