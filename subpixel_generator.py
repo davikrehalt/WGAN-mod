@@ -57,7 +57,7 @@ class Subpixel_Layer(object):
             self.b=b
 
         intermediate=[]
-        for i in range(shape[6]):
+        for i in range(shape[7]):
             conv_out=conv2d(
                 input=input,
                 filters=self.W[i],
@@ -68,10 +68,6 @@ class Subpixel_Layer(object):
             intermediate.append(conv_out+self.b[i].dimshuffle('x',0,'x','x'))
         self.params=[self.W,self.b]
         self.pre_output=T.max(intermediate,axis=0)
-        #now it has shape [shape[0],shape[8]*shape[5]*shape[5],shape[1]-shape[3]+1,shape[2]-shape[4]+1]
-        self.pre_gradient_norms=T.sum(abs(self.W),axis=(2,3,4))
-        self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
-        self.max_gradient=T.max(self.pre_gradient_norms)
         #reshape the output
         self.output=T.zeros(output_shape)
         r = shape[5]
@@ -79,10 +75,14 @@ class Subpixel_Layer(object):
             for y in range(r):
                 self.output=T.set_subtensor(
                     self.output[:,:,x::r,y::r],self.pre_output[:,r*x+y::r*r,:,:])
+        #now it has shape [shape[0],shape[8]*shape[5]*shape[5],shape[1]-shape[3]+1,shape[2]-shape[4]+1]
+        self.pre_gradient_norms=T.sum(abs(self.W),axis=(2,3,4))
+        self.gradient_norms=tmax(self.pre_gradient_norms,1.0)
+        self.max_gradient=T.max(self.pre_gradient_norms)
 
 
 class LGNN(object):
-    def __init__(self,rng,input,shape_layers,params=None,init=0):
+    def __init__(self,rng,input,shape_layers,params=None,init=2):
         self.input=input
         current_input=self.input
         self.layers=[]
@@ -102,7 +102,7 @@ class LGNN(object):
         else:
             index = 0
             for shape in shape_layers:
-                self.layers.append(LipConvLayer(
+                self.layers.append(Subpixel_Layer(
                     rng=rng,
                     input=current_input,
                     shape=shape,
@@ -116,7 +116,6 @@ class LGNN(object):
                 
         self.output=self.layers[-1].output
         self.params = [param for layer in self.layers for param in layer.params]
-        
 
 def example_train(n_epochs=1000):
     batch_size=10
@@ -141,7 +140,8 @@ def example_train(n_epochs=1000):
     fc_layer=LMLP(
         rng,
         input=z,
-        info_layers=[[2,batch_size,6*6*512]]
+        info_layers=[[2,batch_size,6*6*512]],
+        init=2
     )
     generator_input = fc_layer.output.reshape((batch_size,512,6,6))
     generator = LGNN(
@@ -149,7 +149,7 @@ def example_train(n_epochs=1000):
         input=generator_input,
         shape_layers=GNN_shape
     )
-    output=generator.output.reshape((batch_size,784))
+    output=generator.output
     print('number of parameters: ' + str(fc_layer.n_params+generator.n_params))
     params = fc_layer.params+generator.params
     max_gradient = fc_layer.max_gradient*generator.max_gradient
@@ -164,7 +164,7 @@ def example_train(n_epochs=1000):
     training_input=theano.shared(np.asarray(training_input,
                                             dtype=theano.config.floatX),
                                  borrow=True)
-    training_output=train_set_y[:batch_size]
+    training_output=(train_set_y[:batch_size]).reshape((batch_size,28,28))
 
     cost = T.mean((output-w)**2)
     updates=rmsprop(cost,params)
