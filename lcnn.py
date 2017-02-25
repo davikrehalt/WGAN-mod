@@ -25,6 +25,7 @@ class LipConvLayer(object):
         output_shape = [shape[0],shape[7],shape[1]-shape[3]+1,shape[2]-shape[4]+1]
 
         self.input=input 
+        self.shape=shape
         n_in = shape[3]*shape[4]*shape[5]
         self.n_params=np.prod(filter_shape)+np.prod(bias_shape)
         if W is None:
