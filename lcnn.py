@@ -115,11 +115,10 @@ def test_mnist(n_epoch=1000,batch_size=500):
     import timeit
     
     valid_time=1
+    scale_factor=0.01
     #one entry per layer
-    #CNN_shape=[[batch_size,28,28,5,5,1,2,20],[batch_size,24,24,5,5,20,2,50]]
-    CNN_shape=[[batch_size,28,28,5,5,1,2,20],[batch_size,24,24,5,5,20,2,20],[batch_size,20,20,5,5,20,2,20]]
-    #fc_info=[[2,20*20*50,500],[2,500,10]]
-    fc_info=[[2,16*16*20,500],[2,500,10]]
+    CNN_shape=[[batch_size,28,28,5,5,1,2,20],[batch_size,24,24,5,5,20,2,50]]
+    fc_info=[[2,20*20*50,500],[2,500,10]]
 
     datasets = load_data_mnist()
 
@@ -128,8 +127,7 @@ def test_mnist(n_epoch=1000,batch_size=500):
     test_set_x, test_set_y = datasets[2]
 
     # compute number of minibatches for training, validation and testing
-    n_train_batches = 1
-    #n_train_batches = train_set_x.get_value(borrow=True).shape[0]//batch_size
+    n_train_batches = train_set_x.get_value(borrow=True).shape[0]//batch_size
     n_valid_batches = valid_set_x.get_value(borrow=True).shape[0]//batch_size
     n_test_batches = test_set_x.get_value(borrow=True).shape[0]//batch_size
 
@@ -161,10 +159,10 @@ def test_mnist(n_epoch=1000,batch_size=500):
         givens={
         }
     )
-    cost = fc_layer.mse(y)
+    cost = fc_layer.mse(y*scale_factor)
     validate_model = theano.function(
         inputs=[index],
-        outputs=fc_layer.mse(y),
+        outputs=cost,
         givens={
             x: valid_set_x[index * batch_size: (index + 1) * batch_size],
             y: valid_set_y[index * batch_size: (index + 1) * batch_size]
@@ -222,6 +220,7 @@ def test_mnist(n_epoch=1000,batch_size=500):
             
         for minibatch_index in range(n_train_batches):
             minibatch_avg_cost = train_model(minibatch_index)
+            rescale_model()
 
     end_time = timeit.default_timer()
     print(('The code ran for %.2fs' % (end_time - start_time)))
