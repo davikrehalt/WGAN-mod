@@ -115,9 +115,10 @@ def test_mnist(n_epoch=1000,batch_size=500):
     import timeit
     
     valid_time=1
-    scale_factor=0.01
+    cale_factor=0.01
     #one entry per layer
-    CNN_shape=[[batch_size,28,28,5,5,1,2,20],[batch_size,24,24,5,5,20,2,50]]
+    CNN_shape=[[batch_size,28,28,5,5,1,2,20],
+               [batch_size,24,24,5,5,20,2,50]]
     fc_info=[[2,20*20*50,500],[2,500,10]]
 
     datasets = load_data_mnist()
@@ -197,8 +198,6 @@ def test_mnist(n_epoch=1000,batch_size=500):
     print('... training')
 
     start_time = timeit.default_timer()
-
-    epoch = 0
 
     for epoch in range(n_epoch):
         if epoch % valid_time == 0:
