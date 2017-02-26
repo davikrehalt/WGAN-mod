@@ -178,7 +178,7 @@ def example_train(n_epochs=1000):
     )
     start_time = timeit.default_timer()
     for epoch in range(n_epochs):
-        print(train_model(minibatch_index))
+        print(train_model())
 
     end_time = timeit.default_timer()
     print(('The code ran for %.2fs' % (end_time - start_time)))
