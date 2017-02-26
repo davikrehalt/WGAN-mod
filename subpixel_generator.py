@@ -4,8 +4,8 @@ import six.moves.cPickle as pickle
 import theano
 import theano.tensor as T
 from theano.tensor.nnet import conv2d
-from ops import tmax,tmin
-from optimize import rmsprop
+from ops import tmax,tmin,tbox
+from optimize import rmsprop,sgd
 from theano.tensor.shared_randomstreams import RandomStreams
 from lmlp import LMLP
 
@@ -121,6 +121,8 @@ def example_train(n_epochs=1000):
     batch_size=10
     from load_mnist import load_data_mnist
     import timeit
+    from PIL import Image
+    
     GNN_shape=[[batch_size, 6, 6,3,3,2,512,2,256],
                [batch_size, 8, 8,3,3,2,256,2,128],
                [batch_size,12,12,3,3,2,128,2, 64],
@@ -141,15 +143,17 @@ def example_train(n_epochs=1000):
         rng,
         input=z,
         info_layers=[[2,batch_size,6*6*512]],
-        init=2
+        init=1
     )
     generator_input = fc_layer.output.reshape((batch_size,512,6,6))
     generator = LGNN(
         rng,
         input=generator_input,
-        shape_layers=GNN_shape
+        shape_layers=GNN_shape,
+        init=1
     )
     output=generator.output
+    box_output=tbox(output,0.0,1.0)
     print('number of parameters: ' + str(fc_layer.n_params+generator.n_params))
     params = fc_layer.params+generator.params
     max_gradient = fc_layer.max_gradient*generator.max_gradient
@@ -166,7 +170,7 @@ def example_train(n_epochs=1000):
                                  borrow=True)
     truth=w.reshape((batch_size,1,28,28))
     cost = T.mean((output-truth)**2)
-    updates=rmsprop(cost,params)
+    updates=sgd(cost,params,0.001)
     train_model = theano.function(
         inputs=[],
         outputs=cost,
@@ -176,8 +180,24 @@ def example_train(n_epochs=1000):
             w: train_set_x[:batch_size]
         }
     )
+    export_model = theano.function(
+        inputs=[],
+        outputs=box_output,
+        givens={
+            z: training_input
+        }
+    )
     start_time = timeit.default_timer()
     for epoch in range(n_epochs):
+        if epoch%100 == 1:
+            images=255*export_model()
+            for i in range(batch_size):
+                array=np.array(images[i])
+                print(array.shape)
+                array=array.reshape((28,28))
+                im=Image.fromarray(array).convert('L')
+                im.save('mnist_'+str(i)+'.png')
+            print('saved')
         print(train_model())
 
     end_time = timeit.default_timer()

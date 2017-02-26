@@ -7,3 +7,5 @@ def tmax(input,bar):
     return T.switch(input>bar,input,bar)
 def tmin(input,bar):
     return T.switch(input<bar,input,bar)
+def tbox(input,low,high):
+    return tmin(tmax(input,low),high)
