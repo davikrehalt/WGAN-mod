@@ -117,8 +117,9 @@ class LGNN(object):
         self.output=self.layers[-1].output
         self.params = [param for layer in self.layers for param in layer.params]
 
-def example_train(n_epochs=1000):
+def example_train(n_epochs=10000000000000):
     batch_size=10
+    learning_rate=0.01
     from load_mnist import load_data_mnist
     import timeit
     from PIL import Image
@@ -170,7 +171,7 @@ def example_train(n_epochs=1000):
                                  borrow=True)
     truth=w.reshape((batch_size,1,28,28))
     cost = T.mean((output-truth)**2)
-    updates=sgd(cost,params,0.001)
+    updates=sgd(cost,params,learning_rate)
     train_model = theano.function(
         inputs=[],
         outputs=cost,
@@ -193,12 +194,11 @@ def example_train(n_epochs=1000):
             images=255*export_model()
             for i in range(batch_size):
                 array=np.array(images[i])
-                print(array.shape)
                 array=array.reshape((28,28))
                 im=Image.fromarray(array).convert('L')
                 im.save('mnist_'+str(i)+'.png')
             print('saved')
-        print(train_model())
+            print(train_model())
 
     end_time = timeit.default_timer()
     print(('The code ran for %.2fs' % (end_time - start_time)))
